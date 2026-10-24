@@ -38,7 +38,7 @@ sudo apt-get install -y golang-go cargo nodejs npm netcat-openbsd kubectl
 Clone the WhatBreaks repository:
 
 ```bash
-git clone https://github.com/aaradhychinche-alt/WhatBreaks.git
+git clone https://github.com/WhatBreaks/WhatBreaks.git
 cd WhatBreaks
 ```
 
