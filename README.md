@@ -9,7 +9,7 @@
 WhatBreaks is a deterministic change-impact analysis and topology exploration engine for infrastructure. It identifies what other services, workloads, and routes could be impacted before an operator deletes, updates, scales, or replaces a resource.
 
 - **Website**: [https://www.whatbreaks.dev/](https://www.whatbreaks.dev/)
-- **GitHub Repository**: [https://github.com/aaradhychinche-alt/WhatBreaks](https://github.com/aaradhychinche-alt/WhatBreaks)
+- **GitHub Repository**: [https://github.com/WhatBreaks/WhatBreaks](https://github.com/WhatBreaks/WhatBreaks)
 - **License**: [MIT](LICENSE)
 - **Status**: **WhatBreaks V1 is free to use for Kubernetes.**
 
@@ -99,7 +99,7 @@ WhatBreaks provides an idempotent stack runner at [`scripts/wb.sh`](scripts/wb.s
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/aaradhychinche-alt/WhatBreaks.git
+git clone https://github.com/WhatBreaks/WhatBreaks.git
 cd WhatBreaks
 
 # 2. Launch the full development stack
