@@ -69,6 +69,28 @@ func TestMain_HelpCommand(t *testing.T) {
 	}
 }
 
+func TestMain_HelpCommandAfterFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"wb", "--api-port=8082", "help"}, nil, &stdout, &stderr, nil)
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Usage: wb") {
+		t.Errorf("expected usage output for help after flags, got: %s", stdout.String())
+	}
+}
+
+func TestMain_VersionCommandAfterFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"wb", "--api-port=8082", "version"}, nil, &stdout, &stderr, nil)
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "WhatBreaks Platform") {
+		t.Errorf("expected version output after flags, got: %s", stdout.String())
+	}
+}
+
 func TestMain_ForbiddenEnv(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	env := map[string]string{
