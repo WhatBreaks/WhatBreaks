@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --experimental-strip-types --test src/components/DependencyGraph.test.ts src/components/SystemHealthPage.test.ts",
+    "test": "node --experimental-strip-types --test src/components/DependencyGraph.test.ts src/components/SystemHealthPage.test.ts src/utils/resource.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

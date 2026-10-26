@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Search, Server, AlertCircle, RefreshCw } from "lucide-react";
 import type { ResourceItem } from "../types";
+import { sameResourceIdentity } from "../utils/resource";
 
 interface ResourceInventoryProps {
   resources: ResourceItem[];
@@ -119,9 +120,7 @@ export const ResourceInventory: React.FC<ResourceInventoryProps> = ({
       {!loading && !error && filteredResources.length > 0 && (
         <div className="resource-list">
           {filteredResources.map((res) => {
-            const isSelected =
-              selectedResource?.provider_id === res.provider_id &&
-              selectedResource?.resource_type === res.resource_type;
+            const isSelected = sameResourceIdentity(selectedResource, res);
 
             const typeClass = res.resource_type.toLowerCase();
 
