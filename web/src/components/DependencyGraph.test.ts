@@ -4,6 +4,7 @@ import {
   buildGraph,
   shouldZoomOnWheel,
   shouldActivateNode,
+  updateMaxDragDistance,
   isImpactPropagating,
 } from "../utils/graphBuilder.ts";
 import type { ImpactAnswer, DependencyRelationship } from "../types.ts";
@@ -62,6 +63,29 @@ test("Priority 1: Pan drag distance threshold prevents accidental node click act
   // Dragging to pan (> 5px) must NOT activate node selection
   assert.equal(shouldActivateNode(6), false, "Dragging past 5px must suppress node activation");
   assert.equal(shouldActivateNode(45), false, "Substantial pan must suppress node activation");
+});
+
+test("Pan drag distance tracks maximum displacement instead of summing offsets", () => {
+  // Each value is measured from the same mouse-down origin. They must not be summed.
+  let distance = 0;
+  for (const dx of [1, 2, 3]) {
+    distance = updateMaxDragDistance(distance, dx, 0);
+  }
+  assert.equal(distance, 3);
+  assert.equal(shouldActivateNode(distance), true);
+
+  // Once a drag crosses the threshold, moving back near the origin must not reset it.
+  distance = 0;
+  for (const [dx, dy] of [[3, 0], [6, 0], [1, 0]] as const) {
+    distance = updateMaxDragDistance(distance, dx, dy);
+  }
+  assert.equal(distance, 6);
+  assert.equal(shouldActivateNode(distance), false);
+
+  // The existing threshold remains inclusive at exactly 5px (3-4-5 triangle).
+  const atThreshold = updateMaxDragDistance(0, 3, 4);
+  assert.equal(atThreshold, 5);
+  assert.equal(shouldActivateNode(atThreshold), true);
 });
 
 test("Priority 2: Investigate graph displays target, impacted, and relevant connected non-impacted topology", () => {
