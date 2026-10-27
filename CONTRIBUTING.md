@@ -4,7 +4,7 @@ Welcome, and thank you for your interest in contributing to WhatBreaks (WB)!
 
 WhatBreaks is an open-source, deterministic change-impact analysis and topology exploration engine for modern infrastructure. It helps platform engineers, SREs, and DevOps practitioners understand what dependencies could be affected before an operator deletes, updates, scales, or replaces a resource.
 
-Whether you are participating through **NSOC (National Summer of Code)**, contributing to open source for the first time, or an experienced cloud-native developer, we welcome your contributions.
+Whether you are participating through **NSOC (Nexus Spring of Code.)**, contributing to open source for the first time, or an experienced cloud-native developer, we welcome your contributions.
 
 ---
 
