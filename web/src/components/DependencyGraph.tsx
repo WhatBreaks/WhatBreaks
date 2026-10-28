@@ -18,6 +18,7 @@ import {
   edgePath,
   shouldZoomOnWheel,
   shouldActivateNode,
+  updateMaxDragDistance,
   parseProviderID,
   resourceKey,
   typeBadge,
@@ -107,7 +108,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({
       if (!isDraggingRef.current) return;
       const dx = e.clientX - dragStart.mx;
       const dy = e.clientY - dragStart.my;
-      dragDistanceRef.current += Math.hypot(dx, dy);
+      dragDistanceRef.current = updateMaxDragDistance(dragDistanceRef.current, dx, dy);
       setOffset({
         x: dragStart.ox + dx,
         y: dragStart.oy + dy,

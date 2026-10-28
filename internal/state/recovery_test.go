@@ -488,6 +488,17 @@ func TestRecovery_REC02_RestartDetectionAndAutomaticRecovery(t *testing.T) {
 	if rm.RecoveredInstanceID() != "rust-inst-B" {
 		t.Errorf("expected final recovered instance ID rust-inst-B, got %s", rm.RecoveredInstanceID())
 	}
+	// The completion callback runs before RecoverAll clears its recovering flag.
+	// Wait until the recovery cycle has fully returned before checking readiness.
+	deadline := time.Now().Add(time.Second)
+	recovering := rm.IsRecovering()
+	for recovering && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		recovering = rm.IsRecovering()
+	}
+	if recovering {
+		t.Fatal("timed out waiting for restart recovery to finish")
+	}
 	if !rm.IsWorkspaceReady("ws-alpha") {
 		t.Error("expected ws-alpha to be ready after restart recovery")
 	}
