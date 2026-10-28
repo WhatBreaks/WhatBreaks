@@ -32,7 +32,7 @@ import type {
 } from "../types";
 import { analyzeImpact, listResources, listDependencies } from "../api/client";
 import { DependencyGraph } from "./DependencyGraph";
-import { parseProviderID, resourceKey } from "../utils/resource";
+import { parseProviderID, resourceKey, sameResourceIdentity } from "../utils/resource";
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 type TabId = "impacted" | "paths" | "evidence" | "assumptions" | "limitations" | "diagnostics";
@@ -634,9 +634,7 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
                 ) : (
                   filteredResources.slice(0, 60).map((res) => {
                     const parsed = parseProviderID(res.provider_id);
-                    const isSelected =
-                      selectedResource?.provider_id === res.provider_id &&
-                      selectedResource?.resource_type === res.resource_type;
+                    const isSelected = sameResourceIdentity(selectedResource, res);
                     return (
                       <div
                         key={`${res.provider}/${res.resource_type}/${res.provider_id}`}
@@ -877,11 +875,7 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
             answer={null}
             allRelationships={dependencies}
             onSelectNode={(nodeId) => {
-              const found = resources.find(
-                (r) =>
-                  r.provider_id === nodeId.provider_id &&
-                  r.resource_type === nodeId.resource_type
-              );
+              const found = resources.find((r) => sameResourceIdentity(r, nodeId));
               handleSelectResource(
                 found || {
                   provider: nodeId.provider,
@@ -922,11 +916,7 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
                   relationships={incomingDependencies}
                   isIncoming={true}
                   onSelectResource={(peer) => {
-                    const found = resources.find(
-                      (r) =>
-                        r.provider_id === peer.provider_id &&
-                        r.resource_type === peer.resource_type
-                    );
+                    const found = resources.find((r) => sameResourceIdentity(r, peer));
                     handleSelectResource(
                       found || {
                         provider: peer.provider,
@@ -944,11 +934,7 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
                   relationships={outgoingDependencies}
                   isIncoming={false}
                   onSelectResource={(peer) => {
-                    const found = resources.find(
-                      (r) =>
-                        r.provider_id === peer.provider_id &&
-                        r.resource_type === peer.resource_type
-                    );
+                    const found = resources.find((r) => sameResourceIdentity(r, peer));
                     handleSelectResource(
                       found || {
                         provider: peer.provider,
@@ -1078,11 +1064,7 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
             answer={answer}
             allRelationships={dependencies}
             onSelectNode={(nodeId) => {
-              const found = resources.find(
-                (r) =>
-                  r.provider_id === nodeId.provider_id &&
-                  r.resource_type === nodeId.resource_type
-              );
+              const found = resources.find((r) => sameResourceIdentity(r, nodeId));
               handleSelectResource(
                 found || {
                   provider: nodeId.provider,
@@ -1124,11 +1106,7 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
                 <ImpactedTable
                   answer={answer}
                   onSelectResource={(res) => {
-                    const found = resources.find(
-                      (r) =>
-                        r.provider_id === res.provider_id &&
-                        r.resource_type === res.resource_type
-                    );
+                    const found = resources.find((r) => sameResourceIdentity(r, res));
                     handleSelectResource(
                       found || {
                         provider: res.provider,

@@ -26,6 +26,16 @@ export function resourceKey(r: ResourceIdentity): string {
 }
 
 /**
+ * Checks whether two resource identities refer to the same provider, type, and ID.
+ */
+export function sameResourceIdentity(
+  left: ResourceIdentity | null | undefined,
+  right: ResourceIdentity | null | undefined,
+): boolean {
+  return Boolean(left && right && resourceKey(left) === resourceKey(right));
+}
+
+/**
  * Returns a 2-3 letter type badge for compact terminal display.
  */
 export function typeBadge(t: string): string {
