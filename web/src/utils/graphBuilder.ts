@@ -17,6 +17,14 @@ export const PADDING = 36;
 export const ARROW_SIZE = 6;
 export const DRAG_THRESHOLD = 5;
 
+/**
+ * Track the greatest distance from the original mouse-down position.
+ * dx and dy must be measured relative to that same origin for each event.
+ */
+export function updateMaxDragDistance(maxDistance: number, dx: number, dy: number): number {
+  return Math.max(maxDistance, Math.hypot(dx, dy));
+}
+
 export type ImpactVisualStatus = "target" | "impacted" | "non_impacted" | "inconclusive" | "connected";
 
 export interface GraphNode {
