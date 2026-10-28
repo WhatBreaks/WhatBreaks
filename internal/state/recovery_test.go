@@ -491,10 +491,12 @@ func TestRecovery_REC02_RestartDetectionAndAutomaticRecovery(t *testing.T) {
 	// The completion callback runs before RecoverAll clears its recovering flag.
 	// Wait until the recovery cycle has fully returned before checking readiness.
 	deadline := time.Now().Add(time.Second)
-	for rm.IsRecovering() && time.Now().Before(deadline) {
+	recovering := rm.IsRecovering()
+	for recovering && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
+		recovering = rm.IsRecovering()
 	}
-	if rm.IsRecovering() {
+	if recovering {
 		t.Fatal("timed out waiting for restart recovery to finish")
 	}
 	if !rm.IsWorkspaceReady("ws-alpha") {
