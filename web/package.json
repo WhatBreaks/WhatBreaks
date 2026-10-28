@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --experimental-strip-types --test src/components/DependencyGraph.test.ts src/components/SystemHealthPage.test.ts src/utils/resource.test.ts",
+    "test": "tsx --test src/components/DependencyGraph.test.ts src/components/SystemHealthPage.test.ts src/components/ResourceInventory.test.tsx src/utils/resource.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   }

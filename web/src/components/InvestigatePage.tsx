@@ -32,7 +32,7 @@ import type {
 } from "../types";
 import { analyzeImpact, listResources, listDependencies } from "../api/client";
 import { DependencyGraph } from "./DependencyGraph";
-import { parseProviderID, resourceKey } from "../utils/resource";
+import { parseProviderID, resourceKey, sameResourceIdentity } from "../utils/resource";
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 type TabId = "impacted" | "paths" | "evidence" | "assumptions" | "limitations" | "diagnostics";
@@ -634,9 +634,7 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
                 ) : (
                   filteredResources.slice(0, 60).map((res) => {
                     const parsed = parseProviderID(res.provider_id);
-                    const isSelected =
-                      selectedResource?.provider_id === res.provider_id &&
-                      selectedResource?.resource_type === res.resource_type;
+                    const isSelected = sameResourceIdentity(selectedResource, res);
                     return (
                       <div
                         key={`${res.provider}/${res.resource_type}/${res.provider_id}`}
