@@ -91,6 +91,34 @@ func TestMain_VersionCommandAfterFlag(t *testing.T) {
 	}
 }
 
+func TestMain_HelpFlagPrecedesVersionCommand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"wb", "--help", "version"}, nil, &stdout, &stderr, nil)
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Usage: wb") {
+		t.Errorf("expected help output, got: %s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "WhatBreaks Platform") {
+		t.Errorf("expected help to take precedence over the version command, got: %s", stdout.String())
+	}
+}
+
+func TestMain_VersionFlagPrecedesHelpCommand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"wb", "--version", "help"}, nil, &stdout, &stderr, nil)
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "WhatBreaks Platform") {
+		t.Errorf("expected version output, got: %s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "Usage: wb") {
+		t.Errorf("expected version to take precedence over the help command, got: %s", stdout.String())
+	}
+}
+
 func TestMain_ForbiddenEnv(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	env := map[string]string{

@@ -66,6 +66,16 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, te
 		return 2
 	}
 
+	if *showHelp {
+		printUsage(fs, stdout)
+		return 0
+	}
+
+	if *showVersion {
+		fmt.Fprintf(stdout, "WhatBreaks Platform %s\n", version)
+		return 0
+	}
+
 	// The standard flag package stops parsing at the first positional argument.
 	// Accept help/version after flags as well as before them.
 	if positional := fs.Args(); len(positional) > 0 {
@@ -77,16 +87,6 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, te
 			fmt.Fprintf(stdout, "WhatBreaks Platform %s\n", version)
 			return 0
 		}
-	}
-
-	if *showHelp {
-		printUsage(fs, stdout)
-		return 0
-	}
-
-	if *showVersion {
-		fmt.Fprintf(stdout, "WhatBreaks Platform %s\n", version)
-		return 0
 	}
 
 	logger := logging.NewStandardLogger(stderr, logging.LevelInfo)
