@@ -76,6 +76,19 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, te
 		return 0
 	}
 
+	// The standard flag package stops parsing at the first positional argument.
+	// Accept help/version after flags as well as before them.
+	if positional := fs.Args(); len(positional) > 0 {
+		switch positional[0] {
+		case "help":
+			printUsage(fs, stdout)
+			return 0
+		case "version":
+			fmt.Fprintf(stdout, "WhatBreaks Platform %s\n", version)
+			return 0
+		}
+	}
+
 	logger := logging.NewStandardLogger(stderr, logging.LevelInfo)
 	if *k8sClusterID == "k8s-cluster" || *k8sClusterID == "" {
 		if detected := detectKubeContext(); detected != "" {
