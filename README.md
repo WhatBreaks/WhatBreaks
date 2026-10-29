@@ -3,6 +3,10 @@
 </p>
 
 # WhatBreaks (WB)
+[![Status](https://img.shields.io/badge/status-Kubernetes%20V1%20Available%20Now-10b981.svg?style=flat-square)](https://whatbreaks.dev)
+[![Website](https://img.shields.io/badge/website-whatbreaks.dev-blue.svg?style=flat-square)](https://whatbreaks.dev)
+[![GitHub](https://img.shields.io/badge/github-WhatBreaks-181717.svg?style=flat-square&logo=github)](https://github.com/aaradhychinche-alt/WhatBreaks)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey.svg?style=flat-square)](LICENSE)
 
 > **"Know what could break before you change your infrastructure."**
 
