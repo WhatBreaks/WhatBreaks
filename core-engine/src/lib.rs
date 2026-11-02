@@ -17,8 +17,10 @@
 //! - [`history`]: Relationship observation history and current-state derivation.
 //! - [`answer`]: Deterministic, explainable product-level answer engine.
 //! - [`diagnostic`]: Diagnostics and analysis completeness model.
+//! - [`compat_evidence`]: Compatibility knowledge evidence and finding status derivation.
 
 pub mod answer;
+pub mod compat_evidence;
 pub mod diagnostic;
 pub mod discovery;
 pub mod evidence;
@@ -33,6 +35,11 @@ pub mod traversal;
 pub use answer::{
     AnswerEngine, AnswerEvidence, AnswerRelationship, AnswerRequest, ExplanationFact, ImpactAnswer,
     ImpactPath, ImpactSummary,
+};
+pub use compat_evidence::{
+    derive_finding_status, ClaimEffect, DottedNumericOrdering, FindingEvidenceStore, FindingId,
+    FindingStatus, KnowledgeEvidence, KnowledgeEvidenceId, SourceAuthority, SourceRef,
+    VersionKnowledge, VersionOrdering, VersionRange, VersionRef, VersionTransition,
 };
 pub use diagnostic::{
     diagnostic_code, AnalysisCompleteness, CompletenessStatus, Diagnostic, DiagnosticRelevance,
