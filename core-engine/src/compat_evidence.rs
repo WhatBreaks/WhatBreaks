@@ -50,8 +50,11 @@
 //! ```
 //!
 //! Evidence is *applicable* only when its source is official, its component
-//! equals the transition's component, and the transition's current and target
-//! versions fall inside the evidence's `applies_from` and `applies_to` ranges.
+//! equals the transition's component, the transition is an upgrade (the target
+//! is strictly newer than the current version under one scheme), and the
+//! current and target versions fall inside the evidence's `applies_from` and
+//! `applies_to` ranges. A downgrade or a no-op is never matched by an upgrade
+//! claim, even when the two ranges overlap.
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -165,6 +168,16 @@ impl VersionTransition {
             current,
             target,
         }
+    }
+
+    /// Whether this transition moves to a strictly newer version.
+    ///
+    /// Returns `false` for a downgrade, a no-op (equal versions), versions in
+    /// different schemes, and versions that cannot be compared.
+    pub fn is_upgrade(&self, ord: &dyn VersionOrdering) -> bool {
+        self.current.scheme == self.target.scheme
+            && ord.compare(&self.current.scheme, &self.current.raw, &self.target.raw)
+                == Some(Ordering::Less)
     }
 }
 
@@ -465,7 +478,9 @@ impl KnowledgeEvidence {
     /// Whether this evidence may be used to support a finding for `transition`.
     ///
     /// All of the following must hold: the source is official, the component
-    /// matches, and both versions fall inside the corresponding ranges.
+    /// matches, the transition is an upgrade (see [`VersionTransition::is_upgrade`]),
+    /// and both versions fall inside the corresponding ranges. Requiring an
+    /// upgrade stops overlapping ranges from matching a downgrade or a no-op.
     pub fn is_applicable_to(
         &self,
         transition: &VersionTransition,
@@ -473,6 +488,7 @@ impl KnowledgeEvidence {
     ) -> bool {
         self.source.authority == SourceAuthority::Official
             && self.component == transition.component
+            && transition.is_upgrade(ord)
             && self.applies_from.contains(&transition.current, ord)
             && self.applies_to.contains(&transition.target, ord)
     }
@@ -522,7 +538,8 @@ impl std::fmt::Display for FindingStatus {
 /// pure: the result depends only on its inputs and not on the order of
 /// `evidence`.
 ///
-/// Rules, in this exact precedence:
+/// Evidence is applicable only for an upgrade; see
+/// [`KnowledgeEvidence::is_applicable_to`]. Rules, in this exact precedence:
 ///
 /// 1. No applicable evidence: [`FindingStatus::Inferred`] if
 ///    `has_inference_basis`, otherwise [`FindingStatus::Unknown`].
@@ -1369,5 +1386,48 @@ mod tests {
         // 16.1 -> 17.0 starts after 16.0, so the claim does not apply.
         let after = transition(known("16.1"), known("17.0"));
         assert_eq!(status(&after, &[&crossing], false), FindingStatus::Unknown);
+    }
+
+    // -----
+    // 36. CRITICAL TEST 9: a downgrade or no-op never matches an upgrade claim
+    // -----
+    #[test]
+    fn test_critical_9_downgrade_and_noop_never_match_upgrade_claim() {
+        // The helper's ranges overlap: applies_from is [14.0, 16.0) and
+        // applies_to is [15.0, 18.0), so 15.5 and 15.0 sit inside both.
+        let e = official("e1", ClaimEffect::Breaking);
+
+        let downgrade = transition(known("15.5"), known("15.0"));
+        let noop = transition(known("15.0"), known("15.0"));
+        let padded_noop = transition(known("15.0"), known("15.0.0"));
+        for t in [&downgrade, &noop, &padded_noop] {
+            assert_eq!(status(t, &[&e], false), FindingStatus::Unknown);
+            assert_eq!(status(t, &[&e], true), FindingStatus::Inferred);
+        }
+
+        // A real upgrade inside the overlap is still verified.
+        let upgrade = transition(known("15.0"), known("15.5"));
+        assert_eq!(status(&upgrade, &[&e], false), FindingStatus::Verified);
+    }
+
+    // -----
+    // 37. is_upgrade accepts only a strictly newer target under one scheme
+    // -----
+    #[test]
+    fn test_is_upgrade_rules() {
+        assert!(transition(known("1.9"), known("1.10")).is_upgrade(&ord()));
+        assert!(transition(known("1"), known("1.0.1")).is_upgrade(&ord()));
+
+        assert!(!transition(known("1.10"), known("1.9")).is_upgrade(&ord()));
+        assert!(!transition(known("1.2"), known("1.2.0")).is_upgrade(&ord()));
+        assert!(!transition(known("1.2"), known("1.2")).is_upgrade(&ord()));
+
+        // Different schemes cannot be compared.
+        let mixed = transition(known("1.0"), VersionRef::known("k8s", "2.0"));
+        assert!(!mixed.is_upgrade(&ord()));
+
+        // An unparsable or unknown version cannot be compared either.
+        assert!(!transition(known("not-a-version"), known("2.0")).is_upgrade(&ord()));
+        assert!(!transition(VersionRef::unknown("semver"), known("2.0")).is_upgrade(&ord()));
     }
 }
