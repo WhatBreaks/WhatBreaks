@@ -145,11 +145,28 @@ pub trait VersionOrdering: Send + Sync {
 /// - Segments are compared numerically: 10 > 9 (unlike lexical sorting where `"1.10"` < `"1.9"`).
 /// - Shorter version numbers are zero-padded on the right (`1.2` == `1.2.0`).
 /// - Returns `None` for empty strings, non-numeric parts, signs, or invalid punctuation.
+/// - Scheme validation: recognizes dot-separated numeric schemes (`"dotted"`, `"dotted-numeric"`,
+///   and numeric component releases under `"semver"`). Returns `None` for unrecognized schemes
+///   or non-numeric extensions (such as semver prerelease tags).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DottedNumericOrdering;
 
+impl DottedNumericOrdering {
+    /// Return whether this comparator supports the given versioning scheme.
+    ///
+    /// Currently recognizes dot-separated numeric schemes: `"dotted"`, `"dotted-numeric"`,
+    /// and numeric releases under `"semver"` (preserving downstream `compat_evidence` compatibility).
+    #[inline]
+    pub fn supports_scheme(scheme: &str) -> bool {
+        matches!(scheme, "dotted" | "dotted-numeric" | "semver")
+    }
+}
+
 impl VersionOrdering for DottedNumericOrdering {
-    fn compare(&self, _scheme: &str, a: &str, b: &str) -> Option<Ordering> {
+    fn compare(&self, scheme: &str, a: &str, b: &str) -> Option<Ordering> {
+        if !Self::supports_scheme(scheme) {
+            return None;
+        }
         let left = parse_dotted(a)?;
         let right = parse_dotted(b)?;
         let max_len = left.len().max(right.len());
@@ -420,6 +437,41 @@ mod tests {
         assert_eq!(ord().compare("dotted", "v", "1.0"), None);
     }
 
+    #[test]
+    fn test_dotted_numeric_scheme_support_and_rejection() {
+        // Supported schemes
+        assert_eq!(ord().compare("dotted", "1.0", "2.0"), Some(Ordering::Less));
+        assert_eq!(
+            ord().compare("dotted-numeric", "1.0", "2.0"),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            ord().compare("semver", "1.2.3", "1.3.0"),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            ord().compare("semver", "15.4", "16.1"),
+            Some(Ordering::Less)
+        );
+
+        // Unsupported schemes return None
+        assert_eq!(ord().compare("unsupported", "1.0", "2.0"), None);
+        assert_eq!(ord().compare("k8s", "1.28.0", "1.29.0"), None);
+        assert_eq!(ord().compare("rpm", "1.0", "2.0"), None);
+        assert_eq!(ord().compare("custom", "1.0", "2.0"), None);
+
+        // SemVer prereleases and build metadata are rejected as non-numeric
+        assert_eq!(ord().compare("semver", "1.0.0-alpha", "1.0.0"), None);
+        assert_eq!(ord().compare("semver", "1.0.0", "1.0.0+build123"), None);
+
+        // Predicate helper
+        assert!(DottedNumericOrdering::supports_scheme("dotted"));
+        assert!(DottedNumericOrdering::supports_scheme("dotted-numeric"));
+        assert!(DottedNumericOrdering::supports_scheme("semver"));
+        assert!(!DottedNumericOrdering::supports_scheme("k8s"));
+        assert!(!DottedNumericOrdering::supports_scheme("custom"));
+    }
+
     // --- VersionTransition Tests ---
 
     #[test]
@@ -522,6 +574,31 @@ mod tests {
         assert!(!t.is_upgrade(&o));
         assert!(!t.is_downgrade(&o));
         assert!(!t.is_noop(&o));
+    }
+
+    #[test]
+    fn test_version_transition_unsupported_schemes() {
+        let o = ord();
+        // Even if both endpoints use the same scheme, if the scheme is unsupported
+        // by the comparator, transition predicates must safely evaluate to false.
+        let t = VersionTransition::new(
+            "custom-app",
+            VersionRef::known("unsupported", "1.0"),
+            VersionRef::known("unsupported", "2.0"),
+        );
+        assert!(!t.is_upgrade(&o));
+        assert!(!t.is_downgrade(&o));
+        assert!(!t.is_noop(&o));
+
+        // Supported semver numeric transition works
+        let t_semver = VersionTransition::new(
+            "postgres",
+            VersionRef::known("semver", "15.4"),
+            VersionRef::known("semver", "16.1"),
+        );
+        assert!(t_semver.is_upgrade(&o));
+        assert!(!t_semver.is_downgrade(&o));
+        assert!(!t_semver.is_noop(&o));
     }
 
     #[test]

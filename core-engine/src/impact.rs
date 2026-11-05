@@ -414,7 +414,9 @@ impl ChangeAssessment {
                 limitations.push(
                     "Version transition includes an unknown version state; automated version comparability and breaking change detection may be incomplete.".to_string(),
                 );
-            } else if vt.current.is_inferred() || vt.target.is_inferred() {
+            }
+
+            if vt.current.is_inferred() || vt.target.is_inferred() {
                 limitations.push(
                     "Version transition relies on inferred version data; findings should be verified against authoritative release records.".to_string(),
                 );
@@ -1911,5 +1913,99 @@ mod tests {
             .limitations
             .iter()
             .any(|l| l.contains("unknown version state")));
+        assert!(!assessment
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+    }
+
+    #[test]
+    fn test_assessment_limitation_matrix_unknown_and_inferred() {
+        use crate::version::{VersionRef, VersionTransition};
+
+        // 1. Unknown current + inferred target -> reports BOTH limitations
+        let t1 = VersionTransition::new(
+            "redis",
+            VersionRef::unknown("dotted"),
+            VersionRef::inferred("dotted", "7.0.0"),
+        );
+        let c1 = ProposedChange::new(ChangeType::Update).with_version_transition(t1);
+        let a1 = ChangeAssessment::from_proposed_change(&c1);
+        assert!(a1
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(a1
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 2. Inferred current + unknown target -> reports BOTH limitations
+        let t2 = VersionTransition::new(
+            "redis",
+            VersionRef::inferred("dotted", "6.2.0"),
+            VersionRef::unknown("dotted"),
+        );
+        let c2 = ProposedChange::new(ChangeType::Update).with_version_transition(t2);
+        let a2 = ChangeAssessment::from_proposed_change(&c2);
+        assert!(a2
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(a2
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 3. Both unknown -> reports ONLY unknown limitation
+        let t3 = VersionTransition::new(
+            "redis",
+            VersionRef::unknown("dotted"),
+            VersionRef::unknown("dotted"),
+        );
+        let c3 = ProposedChange::new(ChangeType::Update).with_version_transition(t3);
+        let a3 = ChangeAssessment::from_proposed_change(&c3);
+        assert!(a3
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(!a3
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 4. Both inferred -> reports ONLY inferred limitation
+        let t4 = VersionTransition::new(
+            "redis",
+            VersionRef::inferred("dotted", "6.2.0"),
+            VersionRef::inferred("dotted", "7.0.0"),
+        );
+        let c4 = ProposedChange::new(ChangeType::Update).with_version_transition(t4);
+        let a4 = ChangeAssessment::from_proposed_change(&c4);
+        assert!(!a4
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(a4
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 5. Known + known -> does NOT report either uncertainty limitation
+        let t5 = VersionTransition::new(
+            "redis",
+            VersionRef::known("dotted", "6.2.0"),
+            VersionRef::known("dotted", "7.0.0"),
+        );
+        let c5 = ProposedChange::new(ChangeType::Update).with_version_transition(t5);
+        let a5 = ChangeAssessment::from_proposed_change(&c5);
+        assert!(!a5
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(!a5
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
     }
 }

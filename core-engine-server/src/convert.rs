@@ -324,6 +324,7 @@ pub fn proto_to_answer_request(p: proto::AnalyzeImpactRequest) -> Result<AnswerR
         Some(ProposedChange {
             change_type,
             details,
+            version_transition: None,
         })
     } else {
         None
