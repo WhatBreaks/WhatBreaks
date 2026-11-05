@@ -75,6 +75,7 @@ use crate::graph::Graph;
 use crate::relationship::RelationshipKind;
 use crate::resource::ResourceIdentity;
 use crate::traversal::{Traversal, TraversalDirection};
+use crate::version::VersionTransition;
 
 // ---------------------------------------------------------------------------
 // Impact Propagation Policy
@@ -149,6 +150,8 @@ pub struct ProposedChange {
     pub change_type: ChangeType,
     /// Optional change details or metadata.
     pub details: Option<String>,
+    /// Optional proposed version transition for version-aware change analysis.
+    pub version_transition: Option<VersionTransition>,
 }
 
 impl ProposedChange {
@@ -157,6 +160,7 @@ impl ProposedChange {
         Self {
             change_type,
             details: None,
+            version_transition: None,
         }
     }
 
@@ -165,7 +169,14 @@ impl ProposedChange {
         Self {
             change_type,
             details: Some(details.into()),
+            version_transition: None,
         }
+    }
+
+    /// Attach a version transition to this proposed change.
+    pub fn with_version_transition(mut self, transition: VersionTransition) -> Self {
+        self.version_transition = Some(transition);
+        self
     }
 
     /// Evaluates whether this change type propagates across a given relationship kind.
@@ -386,11 +397,35 @@ pub struct ChangeAssessment {
 impl ChangeAssessment {
     /// Create a `ChangeAssessment` from a `ProposedChange`.
     pub fn from_proposed_change(change: &ProposedChange) -> Self {
+        let mut assumptions = change.assumptions();
+        let mut limitations = change.limitations();
+
+        if let Some(ref vt) = change.version_transition {
+            assumptions.push(format!(
+                "Proposed version transition for component '{}': '{}' ({}) -> '{}' ({}).",
+                vt.component,
+                vt.current.raw,
+                vt.current.knowledge.as_str(),
+                vt.target.raw,
+                vt.target.knowledge.as_str(),
+            ));
+
+            if vt.current.is_unknown() || vt.target.is_unknown() {
+                limitations.push(
+                    "Version transition includes an unknown version state; automated version comparability and breaking change detection may be incomplete.".to_string(),
+                );
+            } else if vt.current.is_inferred() || vt.target.is_inferred() {
+                limitations.push(
+                    "Version transition relies on inferred version data; findings should be verified against authoritative release records.".to_string(),
+                );
+            }
+        }
+
         Self {
             change_type: change.change_type,
             impact_nature: change.impact_nature().to_string(),
-            assumptions: change.assumptions(),
-            limitations: change.limitations(),
+            assumptions,
+            limitations,
         }
     }
 
@@ -1830,5 +1865,51 @@ mod tests {
             .with_proposed_change(ProposedChange::new(ChangeType::Scale));
         let out_scale_res = ImpactEngine::analyze(&g, &out_scale_req);
         assert_eq!(out_scale_res.len(), 0);
+    }
+
+    #[test]
+    fn test_proposed_change_with_version_transition() {
+        use crate::version::{VersionRef, VersionTransition};
+
+        let transition = VersionTransition::new(
+            "postgresql",
+            VersionRef::known("dotted", "15.4"),
+            VersionRef::known("dotted", "16.1"),
+        );
+
+        let change =
+            ProposedChange::new(ChangeType::Update).with_version_transition(transition.clone());
+
+        assert_eq!(change.change_type, ChangeType::Update);
+        assert_eq!(change.version_transition, Some(transition));
+
+        let assessment = ChangeAssessment::from_proposed_change(&change);
+        assert!(assessment
+            .assumptions
+            .iter()
+            .any(|a| a.contains("postgresql")));
+        assert!(assessment
+            .assumptions
+            .iter()
+            .any(|a| a.contains("15.4") && a.contains("16.1")));
+    }
+
+    #[test]
+    fn test_proposed_change_with_unknown_version_transition_limitations() {
+        use crate::version::{VersionRef, VersionTransition};
+
+        let transition = VersionTransition::new(
+            "redis",
+            VersionRef::unknown("dotted"),
+            VersionRef::known("dotted", "7.0.0"),
+        );
+
+        let change = ProposedChange::new(ChangeType::Update).with_version_transition(transition);
+
+        let assessment = ChangeAssessment::from_proposed_change(&change);
+        assert!(assessment
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
     }
 }
