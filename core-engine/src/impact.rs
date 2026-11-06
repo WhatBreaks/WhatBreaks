@@ -174,6 +174,12 @@ impl ProposedChange {
     }
 
     /// Attach a version transition to this proposed change.
+    ///
+    /// # Arguments
+    /// * `transition` - The version transition representing component upgrade/downgrade details.
+    ///
+    /// # Returns
+    /// The modified `ProposedChange` instance with the version transition attached.
     pub fn with_version_transition(mut self, transition: VersionTransition) -> Self {
         self.version_transition = Some(transition);
         self
@@ -396,6 +402,18 @@ pub struct ChangeAssessment {
 
 impl ChangeAssessment {
     /// Create a `ChangeAssessment` from a `ProposedChange`.
+    ///
+    /// Evaluates base assumptions and limitations for the given change type,
+    /// and enriches them if a [`VersionTransition`] is attached:
+    /// - Adds explicit version transition context to assumptions.
+    /// - Notes epistemic limitations if either version is [`crate::version::VersionKnowledge::Unknown`].
+    /// - Notes verification limitations if either version is [`crate::version::VersionKnowledge::Inferred`].
+    ///
+    /// # Arguments
+    /// * `change` - The proposed change to assess.
+    ///
+    /// # Returns
+    /// A structured [`ChangeAssessment`] detailing impact nature, assumptions, and limitations.
     pub fn from_proposed_change(change: &ProposedChange) -> Self {
         let mut assumptions = change.assumptions();
         let mut limitations = change.limitations();

@@ -163,6 +163,18 @@ impl DottedNumericOrdering {
 }
 
 impl VersionOrdering for DottedNumericOrdering {
+    /// Compare two version strings under the specified scheme.
+    ///
+    /// # Arguments
+    /// * `scheme` - The version scheme (e.g. `"dotted"`, `"dotted-numeric"`, or `"semver"`).
+    /// * `a` - The first version string.
+    /// * `b` - The second version string.
+    ///
+    /// # Returns
+    /// * `Some(Ordering::Equal)` if the numeric components are identical under zero-padding.
+    /// * `Some(Ordering::Greater)` if `a` is greater than `b`.
+    /// * `Some(Ordering::Less)` if `a` is less than `b`.
+    /// * `None` if `scheme` is unsupported or either string contains invalid or non-numeric tokens.
     fn compare(&self, scheme: &str, a: &str, b: &str) -> Option<Ordering> {
         if !Self::supports_scheme(scheme) {
             return None;
@@ -182,7 +194,11 @@ impl VersionOrdering for DottedNumericOrdering {
     }
 }
 
-/// Helper to parse dot-separated components.
+/// Parse a dot-separated numeric version string into a vector of integer components.
+///
+/// Strips an optional leading `'v'` or `'V'`, and parses each dot-separated segment
+/// as a `u64`. Returns `None` if the input is empty, has empty segments (e.g. `"1..2"`),
+/// contains non-digit characters, or has numbers that overflow `u64`.
 fn parse_dotted(s: &str) -> Option<Vec<u64>> {
     let s = s.trim();
     if s.is_empty() {
@@ -246,7 +262,12 @@ impl VersionTransition {
             == Some(Ordering::Less)
     }
 
-    /// Check if this transition represents a downgrade under the provided ordering.
+    /// Check if this transition represents a verified downgrade under the provided ordering.
+    ///
+    /// Returns `true` only if:
+    /// 1. Both `current` and `target` use the same versioning scheme.
+    /// 2. Neither `current` nor `target` is Unknown.
+    /// 3. Ordering strictly evaluates to `Ordering::Greater` (current is newer than target).
     pub fn is_downgrade(&self, ord: &dyn VersionOrdering) -> bool {
         if self.current.is_unknown() || self.target.is_unknown() {
             return false;
@@ -259,6 +280,11 @@ impl VersionTransition {
     }
 
     /// Check if this transition is a no-op (equal versions under the scheme).
+    ///
+    /// Returns `true` only if:
+    /// 1. Both `current` and `target` use the same versioning scheme.
+    /// 2. Neither `current` nor `target` is Unknown.
+    /// 3. Ordering strictly evaluates to `Ordering::Equal` (target is identical to current under zero-padding).
     pub fn is_noop(&self, ord: &dyn VersionOrdering) -> bool {
         if self.current.is_unknown() || self.target.is_unknown() {
             return false;
