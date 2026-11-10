@@ -75,6 +75,7 @@ use crate::graph::Graph;
 use crate::relationship::RelationshipKind;
 use crate::resource::ResourceIdentity;
 use crate::traversal::{Traversal, TraversalDirection};
+use crate::version::VersionTransition;
 
 // ---------------------------------------------------------------------------
 // Impact Propagation Policy
@@ -149,6 +150,8 @@ pub struct ProposedChange {
     pub change_type: ChangeType,
     /// Optional change details or metadata.
     pub details: Option<String>,
+    /// Optional proposed version transition for version-aware change analysis.
+    pub version_transition: Option<VersionTransition>,
 }
 
 impl ProposedChange {
@@ -157,6 +160,7 @@ impl ProposedChange {
         Self {
             change_type,
             details: None,
+            version_transition: None,
         }
     }
 
@@ -165,7 +169,20 @@ impl ProposedChange {
         Self {
             change_type,
             details: Some(details.into()),
+            version_transition: None,
         }
+    }
+
+    /// Attach a version transition to this proposed change.
+    ///
+    /// # Arguments
+    /// * `transition` - The version transition representing component upgrade/downgrade details.
+    ///
+    /// # Returns
+    /// The modified `ProposedChange` instance with the version transition attached.
+    pub fn with_version_transition(mut self, transition: VersionTransition) -> Self {
+        self.version_transition = Some(transition);
+        self
     }
 
     /// Evaluates whether this change type propagates across a given relationship kind.
@@ -385,12 +402,50 @@ pub struct ChangeAssessment {
 
 impl ChangeAssessment {
     /// Create a `ChangeAssessment` from a `ProposedChange`.
+    ///
+    /// Evaluates base assumptions and limitations for the given change type,
+    /// and enriches them if a [`VersionTransition`] is attached:
+    /// - Adds explicit version transition context to assumptions.
+    /// - Notes epistemic limitations if either version is [`crate::version::VersionKnowledge::Unknown`].
+    /// - Notes verification limitations if either version is [`crate::version::VersionKnowledge::Inferred`].
+    ///
+    /// # Arguments
+    /// * `change` - The proposed change to assess.
+    ///
+    /// # Returns
+    /// A structured [`ChangeAssessment`] detailing impact nature, assumptions, and limitations.
     pub fn from_proposed_change(change: &ProposedChange) -> Self {
+        let mut assumptions = change.assumptions();
+        let mut limitations = change.limitations();
+
+        if let Some(ref vt) = change.version_transition {
+            assumptions.push(format!(
+                "Proposed version transition for component '{}': '{}' ({}) -> '{}' ({}).",
+                vt.component,
+                vt.current.raw,
+                vt.current.knowledge.as_str(),
+                vt.target.raw,
+                vt.target.knowledge.as_str(),
+            ));
+
+            if vt.current.is_unknown() || vt.target.is_unknown() {
+                limitations.push(
+                    "Version transition includes an unknown version state; automated version comparability and breaking change detection may be incomplete.".to_string(),
+                );
+            }
+
+            if vt.current.is_inferred() || vt.target.is_inferred() {
+                limitations.push(
+                    "Version transition relies on inferred version data; findings should be verified against authoritative release records.".to_string(),
+                );
+            }
+        }
+
         Self {
             change_type: change.change_type,
             impact_nature: change.impact_nature().to_string(),
-            assumptions: change.assumptions(),
-            limitations: change.limitations(),
+            assumptions,
+            limitations,
         }
     }
 
@@ -1830,5 +1885,145 @@ mod tests {
             .with_proposed_change(ProposedChange::new(ChangeType::Scale));
         let out_scale_res = ImpactEngine::analyze(&g, &out_scale_req);
         assert_eq!(out_scale_res.len(), 0);
+    }
+
+    #[test]
+    fn test_proposed_change_with_version_transition() {
+        use crate::version::{VersionRef, VersionTransition};
+
+        let transition = VersionTransition::new(
+            "postgresql",
+            VersionRef::known("dotted", "15.4"),
+            VersionRef::known("dotted", "16.1"),
+        );
+
+        let change =
+            ProposedChange::new(ChangeType::Update).with_version_transition(transition.clone());
+
+        assert_eq!(change.change_type, ChangeType::Update);
+        assert_eq!(change.version_transition, Some(transition));
+
+        let assessment = ChangeAssessment::from_proposed_change(&change);
+        assert!(assessment
+            .assumptions
+            .iter()
+            .any(|a| a.contains("postgresql")));
+        assert!(assessment
+            .assumptions
+            .iter()
+            .any(|a| a.contains("15.4") && a.contains("16.1")));
+    }
+
+    #[test]
+    fn test_proposed_change_with_unknown_version_transition_limitations() {
+        use crate::version::{VersionRef, VersionTransition};
+
+        let transition = VersionTransition::new(
+            "redis",
+            VersionRef::unknown("dotted"),
+            VersionRef::known("dotted", "7.0.0"),
+        );
+
+        let change = ProposedChange::new(ChangeType::Update).with_version_transition(transition);
+
+        let assessment = ChangeAssessment::from_proposed_change(&change);
+        assert!(assessment
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(!assessment
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+    }
+
+    #[test]
+    fn test_assessment_limitation_matrix_unknown_and_inferred() {
+        use crate::version::{VersionRef, VersionTransition};
+
+        // 1. Unknown current + inferred target -> reports BOTH limitations
+        let t1 = VersionTransition::new(
+            "redis",
+            VersionRef::unknown("dotted"),
+            VersionRef::inferred("dotted", "7.0.0"),
+        );
+        let c1 = ProposedChange::new(ChangeType::Update).with_version_transition(t1);
+        let a1 = ChangeAssessment::from_proposed_change(&c1);
+        assert!(a1
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(a1
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 2. Inferred current + unknown target -> reports BOTH limitations
+        let t2 = VersionTransition::new(
+            "redis",
+            VersionRef::inferred("dotted", "6.2.0"),
+            VersionRef::unknown("dotted"),
+        );
+        let c2 = ProposedChange::new(ChangeType::Update).with_version_transition(t2);
+        let a2 = ChangeAssessment::from_proposed_change(&c2);
+        assert!(a2
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(a2
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 3. Both unknown -> reports ONLY unknown limitation
+        let t3 = VersionTransition::new(
+            "redis",
+            VersionRef::unknown("dotted"),
+            VersionRef::unknown("dotted"),
+        );
+        let c3 = ProposedChange::new(ChangeType::Update).with_version_transition(t3);
+        let a3 = ChangeAssessment::from_proposed_change(&c3);
+        assert!(a3
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(!a3
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 4. Both inferred -> reports ONLY inferred limitation
+        let t4 = VersionTransition::new(
+            "redis",
+            VersionRef::inferred("dotted", "6.2.0"),
+            VersionRef::inferred("dotted", "7.0.0"),
+        );
+        let c4 = ProposedChange::new(ChangeType::Update).with_version_transition(t4);
+        let a4 = ChangeAssessment::from_proposed_change(&c4);
+        assert!(!a4
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(a4
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
+
+        // 5. Known + known -> does NOT report either uncertainty limitation
+        let t5 = VersionTransition::new(
+            "redis",
+            VersionRef::known("dotted", "6.2.0"),
+            VersionRef::known("dotted", "7.0.0"),
+        );
+        let c5 = ProposedChange::new(ChangeType::Update).with_version_transition(t5);
+        let a5 = ChangeAssessment::from_proposed_change(&c5);
+        assert!(!a5
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown version state")));
+        assert!(!a5
+            .limitations
+            .iter()
+            .any(|l| l.contains("inferred version data")));
     }
 }

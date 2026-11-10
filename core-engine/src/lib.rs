@@ -17,6 +17,7 @@
 //! - [`history`]: Relationship observation history and current-state derivation.
 //! - [`answer`]: Deterministic, explainable product-level answer engine.
 //! - [`diagnostic`]: Diagnostics and analysis completeness model.
+//! - [`version`]: Version knowledge, ordering schemes, and transition models.
 
 pub mod answer;
 pub mod diagnostic;
@@ -29,6 +30,7 @@ pub mod provenance;
 pub mod relationship;
 pub mod resource;
 pub mod traversal;
+pub mod version;
 
 pub use answer::{
     AnswerEngine, AnswerEvidence, AnswerRelationship, AnswerRequest, ExplanationFact, ImpactAnswer,
@@ -57,3 +59,6 @@ pub use resource::{
     Attributes, Provider, Resource, ResourceId, ResourceIdentity, ResourceKind, ResourceMetadata,
 };
 pub use traversal::{Traversal, TraversalDirection, TraversalNode, TraversalResult};
+pub use version::{
+    DottedNumericOrdering, VersionKnowledge, VersionOrdering, VersionRef, VersionTransition,
+};
