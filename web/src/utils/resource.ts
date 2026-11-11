@@ -39,23 +39,38 @@ export function sameResourceIdentity(
  * Returns a 2-3 letter type badge for compact terminal display.
  */
 export function typeBadge(t: string): string {
-  const lower = t.toLowerCase();
+  if (!t || typeof t !== "string") return "";
+  const clean = t.trim();
+  const lower = clean.toLowerCase();
+
   if (lower.startsWith("deploy")) return "DEP";
-  if (lower.startsWith("stateful")) return "STS";
-  if (lower.startsWith("daemon")) return "DS";
+  if (lower.startsWith("stateful") || lower === "sts") return "STS";
+  if (lower.startsWith("daemon") || lower === "ds") return "DS";
   if (lower.startsWith("serv") && !lower.startsWith("serviceaccount")) return "SVC";
-  if (lower.startsWith("config")) return "CM";
+  if (lower.startsWith("config") || lower === "cm") return "CM";
   if (lower.startsWith("sec")) return "SEC";
+  if (lower.startsWith("ingressclass")) return "INGC";
   if (lower.startsWith("ing")) return "ING";
   if (lower.startsWith("pod")) return "POD";
   if (lower.startsWith("node")) return "NOD";
   if (lower.startsWith("pvc") || lower.startsWith("persistentvolumeclaim")) return "PVC";
   if (lower.startsWith("pv") || lower.startsWith("persistentvolume")) return "PV";
-  if (lower.startsWith("replicaset")) return "RS";
-  if (lower.startsWith("serviceaccount")) return "SA";
+  if (lower.startsWith("replicaset") || lower === "rs") return "RS";
+  if (lower.startsWith("serviceaccount") || lower === "sa") return "SA";
   if (lower.startsWith("job")) return "JOB";
-  if (lower.startsWith("cron")) return "CRON";
-  return t.slice(0, 3).toUpperCase();
+  if (lower.startsWith("cron") || lower === "cj") return "CRON";
+  if (lower === "ns" || lower.startsWith("namespace")) return "NS";
+  if (lower === "hpa" || lower.startsWith("horizontalpodautoscaler")) return "HPA";
+  if (lower === "netpol" || lower.startsWith("networkpolicy")) return "NP";
+  if (lower === "crd" || lower.startsWith("customresourcedefinition")) return "CRD";
+  if (lower === "sc" || lower.startsWith("storageclass")) return "SC";
+  if (lower.startsWith("clusterrolebinding")) return "CRB";
+  if (lower.startsWith("clusterrole")) return "CR";
+  if (lower.startsWith("rolebinding")) return "RB";
+  if (lower === "role") return "ROLE";
+  if (lower.startsWith("endpoint")) return "EP";
+
+  return clean.slice(0, 3).toUpperCase();
 }
 
 /**
