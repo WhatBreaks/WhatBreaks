@@ -40,3 +40,44 @@ test("ResourceInventory selects only the resource with matching provider identit
   assert.equal(cards[0][1], " selected", "the matching Kubernetes resource should be selected");
   assert.equal(cards[1][1], undefined, "the Terraform resource should not be selected");
 });
+
+test("ResourceInventory renders fallback time for empty or invalid timestamps", () => {
+  const invalidTimeResources: ResourceItem[] = [
+    {
+      provider: "kubernetes",
+      resource_type: "pod",
+      provider_id: "cluster/default/pod-1",
+      first_observed_at: "",
+      last_observed_at: "invalid-date",
+    },
+  ];
+
+  const markup = renderToStaticMarkup(
+    createElement(ResourceInventory, {
+      resources: invalidTimeResources,
+      selectedResource: null,
+      onSelectResource: () => {},
+      loading: false,
+      error: null,
+      onRefresh: () => {},
+    }),
+  );
+
+  assert.ok(markup.includes("--:--:--"), "renders graceful placeholder time");
+  assert.ok(!markup.includes("Invalid Date"), "does not render raw Invalid Date string");
+});
+
+test("ResourceInventory displays empty state when no resources match", () => {
+  const markup = renderToStaticMarkup(
+    createElement(ResourceInventory, {
+      resources: [],
+      selectedResource: null,
+      onSelectResource: () => {},
+      loading: false,
+      error: null,
+      onRefresh: () => {},
+    }),
+  );
+
+  assert.ok(markup.includes("No Resources Discovered"));
+});

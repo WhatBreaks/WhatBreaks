@@ -12,6 +12,13 @@ interface ResourceInventoryProps {
   onRefresh: () => void;
 }
 
+function formatObservedTime(timestamp?: string): string {
+  if (!timestamp) return "--:--:--";
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return "--:--:--";
+  return date.toLocaleTimeString();
+}
+
 export const ResourceInventory: React.FC<ResourceInventoryProps> = ({
   resources,
   selectedResource,
@@ -24,12 +31,16 @@ export const ResourceInventory: React.FC<ResourceInventoryProps> = ({
   const [typeFilter, setTypeFilter] = useState("all");
 
   const filteredResources = resources.filter((r) => {
-    const matchesSearch = search
-      ? r.provider_id.toLowerCase().includes(search.toLowerCase())
+    const query = search.trim().toLowerCase();
+    const matchesSearch = query
+      ? r.provider_id.toLowerCase().includes(query) ||
+        r.resource_type.toLowerCase().includes(query) ||
+        r.provider.toLowerCase().includes(query)
       : true;
     const matchesType =
       typeFilter !== "all"
-        ? r.resource_type.toLowerCase() === typeFilter.toLowerCase()
+        ? r.resource_type.toLowerCase() === typeFilter.toLowerCase() ||
+          (typeFilter.toLowerCase() === "persistentvolumeclaim" && r.resource_type.toLowerCase() === "pvc")
         : true;
     return matchesSearch && matchesType;
   });
@@ -58,7 +69,7 @@ export const ResourceInventory: React.FC<ResourceInventoryProps> = ({
           <input
             type="text"
             className="input-field"
-            placeholder="Search provider ID (e.g. backend)..."
+            placeholder="Search by ID, kind, or provider..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -80,6 +91,8 @@ export const ResourceInventory: React.FC<ResourceInventoryProps> = ({
         >
           <option value="all">All Kinds</option>
           <option value="deployment">Deployment</option>
+          <option value="statefulset">StatefulSet</option>
+          <option value="daemonset">DaemonSet</option>
           <option value="pod">Pod</option>
           <option value="service">Service</option>
           <option value="configmap">ConfigMap</option>
@@ -87,6 +100,9 @@ export const ResourceInventory: React.FC<ResourceInventoryProps> = ({
           <option value="persistentvolumeclaim">PVC</option>
           <option value="serviceaccount">ServiceAccount</option>
           <option value="ingress">Ingress</option>
+          <option value="job">Job</option>
+          <option value="cronjob">CronJob</option>
+          <option value="namespace">Namespace</option>
           <option value="node">Node</option>
         </select>
       </div>
@@ -135,7 +151,7 @@ export const ResourceInventory: React.FC<ResourceInventoryProps> = ({
                     {res.resource_type}
                   </span>
                   <span className="mono" style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
-                    {new Date(res.last_observed_at).toLocaleTimeString()}
+                    {formatObservedTime(res.last_observed_at)}
                   </span>
                 </div>
                 <div className="resource-name mono">{res.provider_id}</div>
