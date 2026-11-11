@@ -543,8 +543,8 @@ export const InvestigatePage: React.FC<InvestigatePageProps> = ({
         { id: "impacted", label: "Impacted Resources", count: answer.impacted_resources.length },
         { id: "paths", label: "Dependency Paths", count: answer.paths?.length ?? 0 },
         { id: "evidence", label: "Evidence", count: answer.evidence?.length ?? 0 },
-        { id: "assumptions", label: "Assumptions", count: answer.change_assessment?.assumptions.length ?? 0 },
-        { id: "limitations", label: "Limitations", count: answer.change_assessment?.limitations.length ?? 0 },
+        { id: "assumptions", label: "Assumptions", count: answer.change_assessment?.assumptions?.length ?? 0 },
+        { id: "limitations", label: "Limitations", count: answer.change_assessment?.limitations?.length ?? 0 },
         ...(answer.diagnostics && answer.diagnostics.length > 0
           ? [{ id: "diagnostics" as TabId, label: "Diagnostics", count: answer.diagnostics.length }]
           : []),

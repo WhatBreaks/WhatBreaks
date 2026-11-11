@@ -272,22 +272,34 @@ export const ImpactResultView: React.FC<ImpactResultViewProps> = ({
             <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: "6px" }}>
               Engine Assumptions
             </div>
-            <ul style={{ paddingLeft: "16px", fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "4px" }}>
-              {change_assessment.assumptions.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
+            {change_assessment.assumptions && change_assessment.assumptions.length > 0 ? (
+              <ul style={{ paddingLeft: "16px", fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "4px" }}>
+                {change_assessment.assumptions.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ fontSize: "0.78rem", color: "var(--text-dim)", fontStyle: "italic" }}>
+                None stated
+              </div>
+            )}
           </div>
 
           <div>
             <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: "6px" }}>
               Engine Limitations
             </div>
-            <ul style={{ paddingLeft: "16px", fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "4px" }}>
-              {change_assessment.limitations.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
+            {change_assessment.limitations && change_assessment.limitations.length > 0 ? (
+              <ul style={{ paddingLeft: "16px", fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "4px" }}>
+                {change_assessment.limitations.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ fontSize: "0.78rem", color: "var(--text-dim)", fontStyle: "italic" }}>
+                None stated
+              </div>
+            )}
           </div>
         </div>
       )}
