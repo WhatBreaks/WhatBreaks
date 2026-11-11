@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sameResourceIdentity } from "./resource.ts";
+import { sameResourceIdentity, parseProviderID } from "./resource.ts";
 import type { ResourceIdentity } from "../types.ts";
 
 const kubernetesService: ResourceIdentity = {
@@ -28,4 +28,45 @@ test("resource identity matching includes provider, type, and provider ID", () =
   );
   assert.equal(sameResourceIdentity(null, kubernetesService), false);
   assert.equal(sameResourceIdentity(kubernetesService, undefined), false);
+});
+
+test("parseProviderID parses namespaced, cluster-scoped, and trimmed IDs correctly", () => {
+  assert.deepEqual(parseProviderID("k3d-cluster/default/web-service"), {
+    cluster: "k3d-cluster",
+    namespace: "default",
+    name: "web-service",
+  });
+
+  // Cluster-scoped resource (empty namespace)
+  assert.deepEqual(parseProviderID("k3d-cluster//node-1"), {
+    cluster: "k3d-cluster",
+    namespace: "",
+    name: "node-1",
+  });
+
+  // Two-segment cluster/name format
+  assert.deepEqual(parseProviderID("k3d-cluster/node-1"), {
+    cluster: "k3d-cluster",
+    namespace: "",
+    name: "node-1",
+  });
+
+  // Leading and trailing whitespace / slashes
+  assert.deepEqual(parseProviderID("  /k3d-cluster/default/pod-1/  "), {
+    cluster: "k3d-cluster",
+    namespace: "default",
+    name: "pod-1",
+  });
+
+  // Multi-segment resource name
+  assert.deepEqual(parseProviderID("cluster/ns/group/resource/sub"), {
+    cluster: "cluster",
+    namespace: "ns",
+    name: "group/resource/sub",
+  });
+
+  // Empty or invalid input
+  assert.deepEqual(parseProviderID(""), { cluster: "", namespace: "", name: "" });
+  assert.deepEqual(parseProviderID("   "), { cluster: "", namespace: "", name: "" });
+  assert.deepEqual(parseProviderID("///"), { cluster: "", namespace: "", name: "" });
 });
