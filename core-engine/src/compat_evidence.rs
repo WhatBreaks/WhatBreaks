@@ -32,10 +32,9 @@
 //! - **Reference-only association**: [`FindingEvidenceStore`] stores IDs, never
 //!   evidence contents, mirroring [`ProvenanceStore`](crate::provenance::ProvenanceStore).
 //!
-//! - **Provisional version types**: [`VersionKnowledge`], [`VersionRef`],
-//!   [`VersionTransition`], [`VersionRange`] and [`VersionOrdering`] are small
-//!   stand-ins. They are expected to be replaced by the version model from
-//!   issue #18 (Version Transition Modeling) when it lands.
+//! - **Shared version model**: versions, version knowledge, ordering and
+//!   transitions come from [`version`](crate::version) (issue #18). This module
+//!   only adds [`VersionRange`], which is specific to evidence applicability.
 //!
 //! # Finding Status
 //!
@@ -50,9 +49,9 @@
 //! ```
 //!
 //! Evidence is *applicable* only when its source is official, its component
-//! equals the transition's component, the transition is an upgrade (the target
-//! is strictly newer than the current version under one scheme), and the
-//! current and target versions fall inside the evidence's `applies_from` and
+//! equals the transition's component, the transition is an upgrade (see
+//! [`VersionTransition::is_upgrade`](crate::version::VersionTransition::is_upgrade)),
+//! and the current and target versions fall inside the evidence's `applies_from` and
 //! `applies_to` ranges. A downgrade or a no-op is never matched by an upgrade
 //! claim, even when the two ranges overlap.
 
@@ -61,183 +60,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
-// VersionKnowledge
-// ---------------------------------------------------------------------------
-
-/// How well a version string is actually known.
-///
-/// An unknown version is represented explicitly with [`VersionKnowledge::Unknown`]
-/// rather than by an absent field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum VersionKnowledge {
-    /// The version was stated or observed directly.
-    Known,
-    /// The version was derived indirectly (for example from an image tag).
-    Inferred,
-    /// The version is not known at all.
-    Unknown,
-}
-
-impl VersionKnowledge {
-    /// Stable string form, identical to the serialised form.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            VersionKnowledge::Known => "KNOWN",
-            VersionKnowledge::Inferred => "INFERRED",
-            VersionKnowledge::Unknown => "UNKNOWN",
-        }
-    }
-
-    /// `true` only for [`VersionKnowledge::Known`].
-    pub fn is_known(&self) -> bool {
-        matches!(self, VersionKnowledge::Known)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// VersionRef
-// ---------------------------------------------------------------------------
-
-/// A version of a component, together with how well it is known.
-///
-/// `scheme` is an open string (for example `"semver"` or `"k8s"`), following the
-/// same pattern as [`ObservationType`](crate::evidence::ObservationType). It
-/// names the versioning scheme used to interpret `raw`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionRef {
-    /// The versioning scheme used to interpret `raw`.
-    pub scheme: String,
-    /// The version exactly as stated (empty when the version is unknown).
-    pub raw: String,
-    /// How well this version is known.
-    pub knowledge: VersionKnowledge,
-}
-
-impl VersionRef {
-    /// Create a version reference with explicit knowledge.
-    pub fn new(
-        scheme: impl Into<String>,
-        raw: impl Into<String>,
-        knowledge: VersionKnowledge,
-    ) -> Self {
-        Self {
-            scheme: scheme.into(),
-            raw: raw.into(),
-            knowledge,
-        }
-    }
-
-    /// A directly known version.
-    pub fn known(scheme: impl Into<String>, raw: impl Into<String>) -> Self {
-        Self::new(scheme, raw, VersionKnowledge::Known)
-    }
-
-    /// An indirectly inferred version.
-    pub fn inferred(scheme: impl Into<String>, raw: impl Into<String>) -> Self {
-        Self::new(scheme, raw, VersionKnowledge::Inferred)
-    }
-
-    /// An explicitly unknown version.
-    pub fn unknown(scheme: impl Into<String>) -> Self {
-        Self::new(scheme, "", VersionKnowledge::Unknown)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// VersionTransition
-// ---------------------------------------------------------------------------
-
-/// A proposed move of one component from a current version to a target version.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionTransition {
-    /// The component being upgraded (an open string, for example `"postgresql"`).
-    pub component: String,
-    /// The version the component runs today.
-    pub current: VersionRef,
-    /// The version the component would move to.
-    pub target: VersionRef,
-}
-
-impl VersionTransition {
-    /// Create a transition.
-    pub fn new(component: impl Into<String>, current: VersionRef, target: VersionRef) -> Self {
-        Self {
-            component: component.into(),
-            current,
-            target,
-        }
-    }
-
-    /// Whether this transition moves to a strictly newer version.
-    ///
-    /// Returns `false` for a downgrade, a no-op (equal versions), versions in
-    /// different schemes, and versions that cannot be compared.
-    pub fn is_upgrade(&self, ord: &dyn VersionOrdering) -> bool {
-        self.current.scheme == self.target.scheme
-            && ord.compare(&self.current.scheme, &self.current.raw, &self.target.raw)
-                == Some(Ordering::Less)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// VersionOrdering
-// ---------------------------------------------------------------------------
-
-/// Scheme-aware comparison of two version strings.
-///
-/// Implementations return `None` when either version cannot be parsed or the
-/// scheme is not supported. This lets issue #18 supply scheme-specific
-/// comparison later without changing any caller.
-pub trait VersionOrdering {
-    /// Compare version `a` with version `b` under `scheme`.
-    fn compare(&self, scheme: &str, a: &str, b: &str) -> Option<Ordering>;
-}
-
-/// Compares dot-separated numeric versions such as `1.2.10`.
-///
-/// It accepts any scheme string. Every dot-separated part must be a plain
-/// non-negative integer; anything else (empty parts, signs, letters, a leading
-/// `v`, overflow) makes the version unparsable. The shorter version is padded
-/// with zeros, so `1.2` equals `1.2.0`, and parts compare numerically, so
-/// `1.10` is greater than `1.9`.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct DottedNumericOrdering;
-
-impl VersionOrdering for DottedNumericOrdering {
-    fn compare(&self, _scheme: &str, a: &str, b: &str) -> Option<Ordering> {
-        let left = parse_dotted(a)?;
-        let right = parse_dotted(b)?;
-        let len = left.len().max(right.len());
-        for index in 0..len {
-            let l = left.get(index).copied().unwrap_or(0);
-            let r = right.get(index).copied().unwrap_or(0);
-            match l.cmp(&r) {
-                Ordering::Equal => continue,
-                other => return Some(other),
-            }
-        }
-        Some(Ordering::Equal)
-    }
-}
-
-/// Parse `1.2.3` into numeric parts. Returns `None` for anything that is not
-/// strictly digits separated by single dots.
-fn parse_dotted(version: &str) -> Option<Vec<u64>> {
-    if version.is_empty() {
-        return None;
-    }
-    version
-        .split('.')
-        .map(|part| {
-            if part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            part.parse::<u64>().ok()
-        })
-        .collect()
-}
+use crate::version::{VersionOrdering, VersionRef, VersionTransition};
 
 // ---------------------------------------------------------------------------
 // VersionRange
@@ -287,15 +110,16 @@ impl VersionRange {
     /// Whether `version` falls inside this range.
     ///
     /// Returns `false` when the schemes differ, when the version's knowledge is
-    /// [`VersionKnowledge::Unknown`], or when the version (or a bound) cannot be
-    /// compared. An unparsable version never matches, not even an unbounded
-    /// range. An [`VersionKnowledge::Inferred`] version can match; the status
-    /// derivation caps what such a match is allowed to prove.
+    /// [`Unknown`](crate::version::VersionKnowledge::Unknown), or when the version
+    /// (or a bound) cannot be compared. An unparsable version, or one in a scheme
+    /// the ordering does not support, never matches, not even an unbounded range.
+    /// An [`Inferred`](crate::version::VersionKnowledge::Inferred) version can
+    /// match; the status derivation caps what such a match is allowed to prove.
     pub fn contains(&self, version: &VersionRef, ord: &dyn VersionOrdering) -> bool {
         if self.scheme != version.scheme {
             return false;
         }
-        if version.knowledge == VersionKnowledge::Unknown {
+        if version.is_unknown() {
             return false;
         }
         // A version that cannot be compared with itself is unparsable.
@@ -545,7 +369,7 @@ impl std::fmt::Display for FindingStatus {
 ///    `has_inference_basis`, otherwise [`FindingStatus::Unknown`].
 /// 2. Applicable evidence contains both a breaking and a non-breaking claim:
 ///    [`FindingStatus::Conflicting`].
-/// 3. Both transition versions are [`VersionKnowledge::Known`]:
+/// 3. Both transition versions are [`Known`](crate::version::VersionKnowledge::Known):
 ///    [`FindingStatus::Verified`].
 /// 4. Otherwise: [`FindingStatus::Inferred`].
 pub fn derive_finding_status(
@@ -774,6 +598,7 @@ impl FindingEvidenceStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::version::{DottedNumericOrdering, VersionKnowledge};
 
     // -- helpers ------------------------------------------------------------
 
@@ -839,61 +664,7 @@ mod tests {
     }
 
     // -----
-    // 1. Dotted numeric comparison pads with zeros
-    // -----
-    #[test]
-    fn test_dotted_ordering_pads_with_zeros() {
-        assert_eq!(
-            ord().compare("semver", "1.2", "1.2.0"),
-            Some(Ordering::Equal)
-        );
-        assert_eq!(
-            ord().compare("semver", "1.2.1", "1.2"),
-            Some(Ordering::Greater)
-        );
-    }
-
-    // -----
-    // 2. Dotted numeric comparison is numeric, not lexical
-    // -----
-    #[test]
-    fn test_dotted_ordering_is_numeric_not_lexical() {
-        assert_eq!(
-            ord().compare("semver", "1.10", "1.9"),
-            Some(Ordering::Greater)
-        );
-        assert_eq!(ord().compare("semver", "2", "10"), Some(Ordering::Less));
-    }
-
-    // -----
-    // 3. Dotted numeric comparison rejects non-numeric input
-    // -----
-    #[test]
-    fn test_dotted_ordering_rejects_unparsable_versions() {
-        for bad in ["", "1.x", "1..2", "+1", "-1", "v1.2", "1.2.", ".1", "1 2"] {
-            assert_eq!(ord().compare("semver", bad, "1.0"), None, "left: {:?}", bad);
-            assert_eq!(
-                ord().compare("semver", "1.0", bad),
-                None,
-                "right: {:?}",
-                bad
-            );
-        }
-    }
-
-    // -----
-    // 4. Dotted numeric comparison rejects overflow
-    // -----
-    #[test]
-    fn test_dotted_ordering_rejects_overflow() {
-        assert_eq!(
-            ord().compare("semver", "99999999999999999999999", "1"),
-            None
-        );
-    }
-
-    // -----
-    // 5. Range bounds respect inclusive and exclusive flags
+    // 1. Range bounds respect inclusive and exclusive flags
     // -----
     #[test]
     fn test_range_inclusive_and_exclusive_bounds() {
@@ -915,7 +686,7 @@ mod tests {
     }
 
     // -----
-    // 6. Open ends
+    // 2. Open ends
     // -----
     #[test]
     fn test_range_open_ends() {
@@ -932,7 +703,7 @@ mod tests {
     }
 
     // -----
-    // 7. A mismatched scheme never matches
+    // 3. A mismatched scheme never matches
     // -----
     #[test]
     fn test_range_mismatched_scheme_is_false() {
@@ -941,7 +712,7 @@ mod tests {
     }
 
     // -----
-    // 8. An unparsable version never matches, even an unbounded range
+    // 4. An unparsable version never matches, even an unbounded range
     // -----
     #[test]
     fn test_range_unparsable_version_is_false() {
@@ -952,7 +723,7 @@ mod tests {
     }
 
     // -----
-    // 9. An unknown version never matches
+    // 5. An unknown version never matches
     // -----
     #[test]
     fn test_range_unknown_knowledge_is_false() {
@@ -964,7 +735,7 @@ mod tests {
     }
 
     // -----
-    // 10. An inferred version can match a range
+    // 6. An inferred version can match a range
     // -----
     #[test]
     fn test_range_inferred_knowledge_can_match() {
@@ -973,7 +744,29 @@ mod tests {
     }
 
     // -----
-    // 11. CRITICAL TEST 1: official evidence with known versions is verified
+    // 7. A range in an unsupported scheme never matches
+    // -----
+    #[test]
+    fn test_range_unsupported_scheme_is_false() {
+        // The shared ordering supports only dotted, dotted-numeric and semver.
+        let unsupported = VersionRange::unbounded("k8s");
+        assert!(!unsupported.contains(&VersionRef::known("k8s", "1.28"), &ord()));
+        let supported = VersionRange::unbounded("dotted");
+        assert!(supported.contains(&VersionRef::known("dotted", "1.28"), &ord()));
+    }
+
+    // -----
+    // 8. A leading v is accepted by the shared ordering
+    // -----
+    #[test]
+    fn test_range_accepts_v_prefixed_versions() {
+        let r = range(Some("1.0"), Some("2.0"));
+        assert!(r.contains(&known("v1.5"), &ord()));
+        assert!(!r.contains(&known("v2.5"), &ord()));
+    }
+
+    // -----
+    // 9. CRITICAL TEST 1: official evidence with known versions is verified
     // -----
     #[test]
     fn test_critical_1_verified_requires_official_match_and_known_versions() {
@@ -986,7 +779,7 @@ mod tests {
     }
 
     // -----
-    // 12. CRITICAL TEST 2: disagreeing official sources are conflicting
+    // 10. CRITICAL TEST 2: disagreeing official sources are conflicting
     // -----
     #[test]
     fn test_critical_2_conflicting_sources() {
@@ -1005,7 +798,7 @@ mod tests {
     }
 
     // -----
-    // 13. CRITICAL TEST 3: no evidence and no basis is unknown
+    // 11. CRITICAL TEST 3: no evidence and no basis is unknown
     // -----
     #[test]
     fn test_critical_3_no_evidence_is_unknown() {
@@ -1014,7 +807,7 @@ mod tests {
     }
 
     // -----
-    // 14. CRITICAL TEST 4: no evidence but an inference basis is inferred
+    // 12. CRITICAL TEST 4: no evidence but an inference basis is inferred
     // -----
     #[test]
     fn test_critical_4_inference_basis_is_inferred() {
@@ -1023,7 +816,7 @@ mod tests {
     }
 
     // -----
-    // 15. An inferred version caps a match at inferred
+    // 13. An inferred version caps a match at inferred
     // -----
     #[test]
     fn test_inferred_version_caps_match_at_inferred() {
@@ -1041,7 +834,7 @@ mod tests {
     }
 
     // -----
-    // 16. CRITICAL TEST 5: an unknown version never reaches verified
+    // 14. CRITICAL TEST 5: an unknown version never reaches verified
     // -----
     #[test]
     fn test_critical_5_unknown_version_never_verified() {
@@ -1055,7 +848,7 @@ mod tests {
     }
 
     // -----
-    // 17. CRITICAL TEST 6: community sources never verify or conflict
+    // 15. CRITICAL TEST 6: community sources never verify or conflict
     // -----
     #[test]
     fn test_critical_6_community_source_never_verifies() {
@@ -1075,7 +868,7 @@ mod tests {
     }
 
     // -----
-    // 18. Evidence for another component is ignored
+    // 16. Evidence for another component is ignored
     // -----
     #[test]
     fn test_other_component_is_ignored() {
@@ -1086,7 +879,7 @@ mod tests {
     }
 
     // -----
-    // 19. Evidence whose ranges do not match the transition is ignored
+    // 17. Evidence whose ranges do not match the transition is ignored
     // -----
     #[test]
     fn test_out_of_range_evidence_is_ignored() {
@@ -1104,7 +897,7 @@ mod tests {
     }
 
     // -----
-    // 20. Status does not depend on evidence order
+    // 18. Status does not depend on evidence order
     // -----
     #[test]
     fn test_status_is_independent_of_evidence_order() {
@@ -1122,7 +915,7 @@ mod tests {
     }
 
     // -----
-    // 21. KnowledgeEvidence round-trips through JSON
+    // 19. KnowledgeEvidence round-trips through JSON
     // -----
     #[test]
     fn test_knowledge_evidence_serialization_round_trip() {
@@ -1133,7 +926,7 @@ mod tests {
     }
 
     // -----
-    // 22. Enums serialise to the same strings as as_str
+    // 20. Enums serialise to the same strings as as_str
     // -----
     #[test]
     fn test_enums_serialize_to_as_str() {
@@ -1163,7 +956,7 @@ mod tests {
     }
 
     // -----
-    // 23. IDs serialise transparently as plain strings
+    // 21. IDs serialise transparently as plain strings
     // -----
     #[test]
     fn test_ids_serialize_transparently() {
@@ -1180,7 +973,7 @@ mod tests {
     }
 
     // -----
-    // 24. A new store is empty
+    // 22. A new store is empty
     // -----
     #[test]
     fn test_new_store_is_empty() {
@@ -1193,7 +986,7 @@ mod tests {
     }
 
     // -----
-    // 25. Linking is idempotent
+    // 23. Linking is idempotent
     // -----
     #[test]
     fn test_link_is_idempotent() {
@@ -1207,7 +1000,7 @@ mod tests {
     }
 
     // -----
-    // 26. CRITICAL TEST 7: forward and reverse lookups agree
+    // 24. CRITICAL TEST 7: forward and reverse lookups agree
     // -----
     #[test]
     fn test_critical_7_forward_and_reverse_lookups_agree() {
@@ -1224,7 +1017,7 @@ mod tests {
     }
 
     // -----
-    // 27. Query output is sorted regardless of insertion order
+    // 25. Query output is sorted regardless of insertion order
     // -----
     #[test]
     fn test_query_output_is_sorted() {
@@ -1252,7 +1045,7 @@ mod tests {
     }
 
     // -----
-    // 28. Unknown lookups return empty results
+    // 26. Unknown lookups return empty results
     // -----
     #[test]
     fn test_unknown_lookups_are_empty() {
@@ -1263,7 +1056,7 @@ mod tests {
     }
 
     // -----
-    // 29. Removing a finding cleans both indexes
+    // 27. Removing a finding cleans both indexes
     // -----
     #[test]
     fn test_remove_finding_cleans_both_indexes() {
@@ -1283,7 +1076,7 @@ mod tests {
     }
 
     // -----
-    // 30. Re-adding after removal works
+    // 28. Re-adding after removal works
     // -----
     #[test]
     fn test_repeated_link_and_remove() {
@@ -1297,7 +1090,7 @@ mod tests {
     }
 
     // -----
-    // 31. check_invariants detects a forward-only link
+    // 29. check_invariants detects a forward-only link
     // -----
     #[test]
     fn test_check_invariants_detects_missing_reverse_entry() {
@@ -1313,7 +1106,7 @@ mod tests {
     }
 
     // -----
-    // 32. check_invariants detects a reverse-only link
+    // 30. check_invariants detects a reverse-only link
     // -----
     #[test]
     fn test_check_invariants_detects_missing_forward_entry() {
@@ -1329,7 +1122,7 @@ mod tests {
     }
 
     // -----
-    // 33. check_invariants detects empty sets
+    // 31. check_invariants detects empty sets
     // -----
     #[test]
     fn test_check_invariants_detects_empty_sets() {
@@ -1343,7 +1136,7 @@ mod tests {
     }
 
     // -----
-    // 34. The store is Send and Sync
+    // 32. The store is Send and Sync
     // -----
     #[test]
     fn test_send_sync_thread_safety() {
@@ -1355,7 +1148,7 @@ mod tests {
     }
 
     // -----
-    // 35. CRITICAL TEST 8: a change from an intermediate release applies to a spanning upgrade
+    // 33. CRITICAL TEST 8: a change from an intermediate release applies to a spanning upgrade
     // -----
     #[test]
     fn test_critical_8_intermediate_release_applies_to_spanning_upgrade() {
@@ -1389,7 +1182,7 @@ mod tests {
     }
 
     // -----
-    // 36. CRITICAL TEST 9: a downgrade or no-op never matches an upgrade claim
+    // 34. CRITICAL TEST 9: a downgrade or no-op never matches an upgrade claim
     // -----
     #[test]
     fn test_critical_9_downgrade_and_noop_never_match_upgrade_claim() {
@@ -1408,26 +1201,5 @@ mod tests {
         // A real upgrade inside the overlap is still verified.
         let upgrade = transition(known("15.0"), known("15.5"));
         assert_eq!(status(&upgrade, &[&e], false), FindingStatus::Verified);
-    }
-
-    // -----
-    // 37. is_upgrade accepts only a strictly newer target under one scheme
-    // -----
-    #[test]
-    fn test_is_upgrade_rules() {
-        assert!(transition(known("1.9"), known("1.10")).is_upgrade(&ord()));
-        assert!(transition(known("1"), known("1.0.1")).is_upgrade(&ord()));
-
-        assert!(!transition(known("1.10"), known("1.9")).is_upgrade(&ord()));
-        assert!(!transition(known("1.2"), known("1.2.0")).is_upgrade(&ord()));
-        assert!(!transition(known("1.2"), known("1.2")).is_upgrade(&ord()));
-
-        // Different schemes cannot be compared.
-        let mixed = transition(known("1.0"), VersionRef::known("k8s", "2.0"));
-        assert!(!mixed.is_upgrade(&ord()));
-
-        // An unparsable or unknown version cannot be compared either.
-        assert!(!transition(known("not-a-version"), known("2.0")).is_upgrade(&ord()));
-        assert!(!transition(VersionRef::unknown("semver"), known("2.0")).is_upgrade(&ord()));
     }
 }
