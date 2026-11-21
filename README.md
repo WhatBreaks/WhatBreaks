@@ -350,4 +350,3 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 - [Contribution Guidelines](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
-
