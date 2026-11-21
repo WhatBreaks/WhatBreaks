@@ -1,4 +1,13 @@
 <p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-mark-light.svg">
+    <img src="docs/images/logo-mark.svg" alt="WhatBreaks logo" width="96" height="96">
+  </picture>
+</p>
+
+<p align="center"><strong>WhatBreaks</strong></p>
+
+<p align="center">
   <img src="docs/images/banner.png" alt="WhatBreaks - See the impact before it happens" width="100%">
 </p>
 
@@ -341,3 +350,4 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 - [Contribution Guidelines](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
+
