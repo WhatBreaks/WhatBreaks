@@ -37,4 +37,3 @@ export const NavIcon: React.FC<NavIconProps> = ({
     </svg>
   );
 };
-
