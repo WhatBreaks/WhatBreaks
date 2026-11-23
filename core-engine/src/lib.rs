@@ -18,8 +18,10 @@
 //! - [`answer`]: Deterministic, explainable product-level answer engine.
 //! - [`diagnostic`]: Diagnostics and analysis completeness model.
 //! - [`version`]: Version knowledge, ordering schemes, and transition models.
+//! - [`compat_evidence`]: Compatibility knowledge evidence and finding status derivation.
 
 pub mod answer;
+pub mod compat_evidence;
 pub mod diagnostic;
 pub mod discovery;
 pub mod evidence;
@@ -35,6 +37,10 @@ pub mod version;
 pub use answer::{
     AnswerEngine, AnswerEvidence, AnswerRelationship, AnswerRequest, ExplanationFact, ImpactAnswer,
     ImpactPath, ImpactSummary,
+};
+pub use compat_evidence::{
+    derive_finding_status, ClaimEffect, FindingEvidenceStore, FindingId, FindingStatus,
+    KnowledgeEvidence, KnowledgeEvidenceId, SourceAuthority, SourceRef, VersionRange,
 };
 pub use diagnostic::{
     diagnostic_code, AnalysisCompleteness, CompletenessStatus, Diagnostic, DiagnosticRelevance,
