@@ -5,17 +5,27 @@ import type { ResourceIdentity } from "../types";
  * into its cluster, namespace, and name components.
  */
 export function parseProviderID(id: string): { cluster: string; namespace: string; name: string } {
-  if (!id) {
+  if (!id || typeof id !== "string") {
     return { cluster: "", namespace: "", name: "" };
   }
-  const parts = id.split("/");
+  const cleanId = id.trim();
+  if (!cleanId) {
+    return { cluster: "", namespace: "", name: "" };
+  }
+
+  const normalized = cleanId.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!normalized) {
+    return { cluster: "", namespace: "", name: "" };
+  }
+
+  const parts = normalized.split("/");
   if (parts.length >= 3) {
     return { cluster: parts[0], namespace: parts[1], name: parts.slice(2).join("/") };
   }
   if (parts.length === 2) {
     return { cluster: parts[0], namespace: "", name: parts[1] };
   }
-  return { cluster: "", namespace: "", name: id };
+  return { cluster: "", namespace: "", name: normalized };
 }
 
 /**
