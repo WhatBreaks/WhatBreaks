@@ -408,6 +408,36 @@ pub fn derive_finding_status(
     }
 }
 
+/// Compatibility evidence selected for one proposed version transition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionCompatibilityAssessment<'a> {
+    /// Strength of the applicable compatibility claims.
+    pub status: FindingStatus,
+    /// Applicable official claims, including their source references, ordered by evidence ID.
+    /// An empty list means the transition has no applicable evidence.
+    pub evidence: Vec<&'a KnowledgeEvidence>,
+}
+
+/// Analyze a transition against supplied records without fetching external data.
+///
+/// Claims about intermediate releases apply when the supplied version ranges
+/// match both ends of the upgrade. A missing match yields an unknown status;
+/// callers can inspect the evidence to distinguish breaking and non-breaking claims.
+pub fn analyze_version_compatibility<'a>(
+    transition: &VersionTransition,
+    records: &'a [KnowledgeEvidence],
+    ordering: &dyn VersionOrdering,
+) -> VersionCompatibilityAssessment<'a> {
+    let mut evidence: Vec<_> = records
+        .iter()
+        .filter(|record| record.is_applicable_to(transition, ordering))
+        .collect();
+    evidence.sort_by(|left, right| left.id.cmp(&right.id));
+    let status = derive_finding_status(transition, &evidence, false, ordering);
+
+    VersionCompatibilityAssessment { status, evidence }
+}
+
 // ---------------------------------------------------------------------------
 // FindingEvidenceStore
 // ---------------------------------------------------------------------------
@@ -1179,6 +1209,55 @@ mod tests {
         // 16.1 -> 17.0 starts after 16.0, so the claim does not apply.
         let after = transition(known("16.1"), known("17.0"));
         assert_eq!(status(&after, &[&crossing], false), FindingStatus::Unknown);
+    }
+
+    #[test]
+    fn assessment_keeps_applicable_release_references_in_evidence_id_order() {
+        let mut breaking = official("b", ClaimEffect::Breaking);
+        breaking.applies_from = range(None, Some("16.0"));
+        breaking.applies_to = range(Some("16.0"), None);
+        let mut non_breaking = breaking.clone();
+        non_breaking.id = eid("a");
+        non_breaking.effect = ClaimEffect::NonBreaking;
+        non_breaking.source.url = "https://example.com/compatibility".into();
+        let mut unrelated = breaking.clone();
+        unrelated.component = "different-component".into();
+        let records = [breaking, unrelated, non_breaking];
+        let spanning = transition(known("15.4"), known("17.0"));
+
+        let assessment = analyze_version_compatibility(&spanning, &records, &ord());
+
+        assert_eq!(assessment.status, FindingStatus::Conflicting);
+        assert_eq!(assessment.evidence, vec![&records[2], &records[0]]);
+        assert_eq!(
+            assessment.evidence[0].source.url,
+            "https://example.com/compatibility"
+        );
+    }
+
+    #[test]
+    fn assessment_keeps_inferred_versions_and_unsupported_moves_distinct() {
+        let mut record = official("a", ClaimEffect::Breaking);
+        record.applies_from = range(None, Some("16.0"));
+        record.applies_to = range(Some("16.0"), None);
+        let evidence = [record];
+        let inferred = transition(known("15.4"), VersionRef::inferred("semver", "16.0"));
+
+        let assessment = analyze_version_compatibility(&inferred, &evidence, &ord());
+        assert_eq!(assessment.status, FindingStatus::Inferred);
+        assert_eq!(assessment.evidence, vec![&evidence[0]]);
+
+        for unsupported in [
+            transition(known("15.4"), known("15.9")),
+            transition(known("16.0"), known("16.0")),
+            transition(known("17.0"), known("15.4")),
+            transition(VersionRef::unknown("semver"), known("17.0")),
+            transition(known("15.4"), VersionRef::known("unrecognized", "17.0")),
+        ] {
+            let assessment = analyze_version_compatibility(&unsupported, &evidence, &ord());
+            assert_eq!(assessment.status, FindingStatus::Unknown);
+            assert!(assessment.evidence.is_empty());
+        }
     }
 
     // -----

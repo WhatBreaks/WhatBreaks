@@ -39,8 +39,9 @@ pub use answer::{
     ImpactPath, ImpactSummary,
 };
 pub use compat_evidence::{
-    derive_finding_status, ClaimEffect, FindingEvidenceStore, FindingId, FindingStatus,
-    KnowledgeEvidence, KnowledgeEvidenceId, SourceAuthority, SourceRef, VersionRange,
+    analyze_version_compatibility, derive_finding_status, ClaimEffect, FindingEvidenceStore,
+    FindingId, FindingStatus, KnowledgeEvidence, KnowledgeEvidenceId, SourceAuthority, SourceRef,
+    VersionCompatibilityAssessment, VersionRange,
 };
 pub use diagnostic::{
     diagnostic_code, AnalysisCompleteness, CompletenessStatus, Diagnostic, DiagnosticRelevance,
