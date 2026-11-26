@@ -3,6 +3,7 @@ import { getSystemHealth, checkHealth } from "../api/client";
 
 interface TopBarProps {
   breadcrumb: string[];
+  onHelpClick?: () => void;
 }
 
 interface StatusState {
@@ -19,9 +20,17 @@ function useNow() {
   return now;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ breadcrumb }) => {
+export const TopBar: React.FC<TopBarProps> = ({ breadcrumb, onHelpClick }) => {
   const [status, setStatus] = useState<StatusState>({ api: "loading", core: "loading" });
   const now = useNow();
+
+  const handleHelp = () => {
+    if (onHelpClick) {
+      onHelpClick();
+    } else {
+      window.open("https://github.com/WhatBreaks/WhatBreaks#readme", "_blank", "noopener,noreferrer");
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -100,9 +109,11 @@ export const TopBar: React.FC<TopBarProps> = ({ breadcrumb }) => {
 
         {/* Help */}
         <button
+          type="button"
           className="topbar-help"
-          aria-label="Help"
+          aria-label="Documentation and help"
           title="Documentation and help"
+          onClick={handleHelp}
         >
           ?
         </button>
