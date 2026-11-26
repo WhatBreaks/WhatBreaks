@@ -20,10 +20,12 @@
 //! - [`version`]: Version knowledge, ordering schemes, and transition models.
 //! - [`compat_assessment`]: Analysis of a version transition against compatibility claims.
 //! - [`compat_evidence`]: Compatibility knowledge evidence and finding status derivation.
+//! - [`candidate_dependency_impact`]: Possible dependent resources for breaking claims.
 
 pub mod answer;
 pub mod compat_assessment;
 pub mod compat_evidence;
+mod compat_impact;
 pub mod diagnostic;
 pub mod discovery;
 pub mod evidence;
@@ -47,6 +49,7 @@ pub use compat_evidence::{
     derive_finding_status, ClaimEffect, FindingEvidenceStore, FindingId, FindingStatus,
     KnowledgeEvidence, KnowledgeEvidenceId, SourceAuthority, SourceRef, VersionRange,
 };
+pub use compat_impact::candidate_dependency_impact;
 pub use diagnostic::{
     diagnostic_code, AnalysisCompleteness, CompletenessStatus, Diagnostic, DiagnosticRelevance,
     DiagnosticSeverity,
