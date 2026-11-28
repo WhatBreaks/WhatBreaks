@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "tsx --test src/components/DependencyGraph.test.ts src/components/SystemHealthPage.test.ts src/components/ResourceInventory.test.tsx src/utils/resource.test.ts",
+    "test": "tsx --test src/components/DependencyGraph.test.ts src/components/SystemHealthPage.test.ts src/components/ResourceInventory.test.tsx src/components/ImpactResultView.test.tsx src/utils/resource.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

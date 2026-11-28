@@ -169,8 +169,8 @@ export interface ExplanationFact {
 export interface ChangeAssessment {
   change_type: ChangeType;
   impact_nature: string;
-  assumptions: string[];
-  limitations: string[];
+  assumptions?: string[];
+  limitations?: string[];
 }
 
 export interface AnalysisCompleteness {
